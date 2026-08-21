@@ -7,20 +7,77 @@
         body { margin: 0; overflow: hidden; background-color: #87CEEB; color: white; font-family: sans-serif; }
         canvas { display: block; }
         
-        /* UI Panel */
-        #ui { position: absolute; top: 15px; left: 15px; background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 8px; z-index: 100; min-width: 250px; max-height: 90vh; display: flex; flex-direction: column; }
-        select { padding: 8px; margin-top: 10px; width: 100%; height: 250px; cursor: pointer; background: #333; color: white; border: 1px solid #555; }
-        button { padding: 12px; margin-top: 15px; width: 100%; cursor: pointer; background: #4caf50; color: white; border: none; font-weight: bold; font-size: 14px; }
-        button:hover { background: #45a049; }
-        #loading { display: none; color: #ffeb3b; margin-top: 15px; font-weight: bold; text-align: center; }
-        small { color: #bbb; display: block; margin-top: 5px; font-size: 11px; }
+        /* Main UI Panel */
+        #ui { 
+            position: absolute; top: 15px; left: 15px; 
+            background: rgba(18, 24, 38, 0.9); 
+            padding: 18px; border-radius: 10px; z-index: 100; 
+            width: 280px; max-height: 88vh; 
+            display: flex; flex-direction: column; 
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        h2 { margin: 0 0 10px 0; font-size: 20px; color: #4caf50; }
+        
+        /* Section Containers */
+        .section-box {
+            background: rgba(255,255,255,0.05);
+            padding: 10px; border-radius: 6px;
+            margin-bottom: 12px;
+        }
+        
+        /* Basemap Control Button */
+        .toggle-btn {
+            padding: 10px; width: 100%; cursor: pointer;
+            background: #2196F3; color: white; border: none;
+            border-radius: 5px; font-weight: bold; font-size: 13px;
+            transition: background 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .toggle-btn.off { background: #555; }
+        .toggle-btn:hover { opacity: 0.9; }
 
-        /* Dynamic Legend Overlay */
-        #legend { position: absolute; bottom: 20px; right: 20px; background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 8px; display: none; text-align: center; font-family: sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
-        #legend h4 { margin: 0 0 10px 0; font-size: 14px; letter-spacing: 1px; }
-        .legend-container { display: flex; align-items: center; justify-content: center; height: 150px; }
-        .color-bar { height: 100%; width: 25px; background: linear-gradient(to top, #4caf50, #ffff00, #ff5252); border-radius: 4px; border: 1px solid #fff; margin-right: 15px; }
-        .labels { display: flex; flex-direction: column; justify-content: space-between; height: 100%; font-size: 13px; font-weight: bold; text-align: left; }
+        /* DEM Layer List Box */
+        .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .counter { font-size: 12px; font-weight: bold; color: #ffeb3b; }
+        
+        #demListContainer {
+            height: 220px; overflow-y: auto;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid #444; border-radius: 4px;
+            padding: 6px;
+        }
+        
+        .dem-item {
+            display: flex; align-items: center;
+            padding: 4px 6px; font-size: 13px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            cursor: pointer;
+        }
+        .dem-item:hover { background: rgba(255,255,255,0.1); }
+        .dem-item input { margin-right: 8px; cursor: pointer; }
+
+        /* Main Action Button */
+        #loadBtn {
+            padding: 12px; margin-top: 8px; width: 100%; cursor: pointer;
+            background: #4caf50; color: white; border: none;
+            border-radius: 6px; font-weight: bold; font-size: 14px;
+            box-shadow: 0 4px 10px rgba(76, 175, 80, 0.4);
+        }
+        #loadBtn:hover { background: #45a049; }
+        #loading { display: none; color: #ffeb3b; margin-top: 10px; font-weight: bold; text-align: center; font-size: 12px; }
+
+        /* Elevation Legend */
+        #legend { 
+            position: absolute; bottom: 20px; right: 20px; 
+            background: rgba(18, 24, 38, 0.9); padding: 14px; 
+            border-radius: 8px; display: none; text-align: center; 
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        #legend h4 { margin: 0 0 10px 0; font-size: 12px; letter-spacing: 1px; color: #aaa; }
+        .legend-container { display: flex; align-items: center; justify-content: center; height: 130px; }
+        .color-bar { height: 100%; width: 20px; background: linear-gradient(to top, #4caf50, #ffff00, #ff5252); border-radius: 3px; margin-right: 12px; }
+        .labels { display: flex; flex-direction: column; justify-content: space-between; height: 100%; font-size: 12px; font-weight: bold; }
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.min.js"></script>
@@ -36,16 +93,31 @@
 <body>
     <div id="ui">
         <h2>3D DEM Viewer</h2>
-        <label for="layerSelect">Select TIF Layers:</label>
-        <small>Hold <b>Ctrl</b> (Windows) or <b>Cmd</b> (Mac) to select up to 20.</small>
-        <select id="layerSelect" multiple>
-            <!-- Javascript will auto-fill this -->
-        </select>
-        <button id="loadBtn">Load 3D Surface</button>
-        <div id="loading">Processing TIF & Fetching ESRI Basemap...</div>
+        
+        <!-- BASEMAP CONTROL -->
+        <div class="section-box">
+            <button id="basemapBtn" class="toggle-btn">
+                <span>🛰️ Satellite Basemap (MY)</span>
+            </button>
+        </div>
+
+        <!-- DEM LAYERS SELECTION -->
+        <div class="section-box" style="flex-grow: 1; display: flex; flex-direction: column;">
+            <div class="list-header">
+                <label style="font-weight: bold; font-size: 13px;">DEM Layers:</label>
+                <span class="counter" id="selectCount">0 / 20 Selected</span>
+            </div>
+            
+            <div id="demListContainer">
+                <!-- Checkboxes injected by JS -->
+            </div>
+        </div>
+
+        <button id="loadBtn">Render 3D Terrain</button>
+        <div id="loading">Processing DEM files & Satellite...</div>
     </div>
 
-    <!-- The Legend -->
+    <!-- ELEVATION LEGEND -->
     <div id="legend">
         <h4>ELEVATION</h4>
         <div class="legend-container">
@@ -61,6 +133,7 @@
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+        // --- ALL TIF FILES LIST ---
         const myTifFiles = [
             "AU13002.tif", "AU13003.tif", "AU13004.tif", "AU13011.tif", "AU13012.tif", "AU13013.tif", "AU13014.tif",
             "AU13021.tif", "AU13022.tif", "AU13023.tif", "AU13024.tif", "AU13031.tif", "AU13032.tif", "AU13033.tif",
@@ -92,18 +165,50 @@
             "AU31233.tif", "AU31234.tif", "AU31241.tif", "AU31242.tif", "AU31243.tif", "AU31244.tif"
         ];
 
-        const selectElement = document.getElementById('layerSelect');
-        myTifFiles.forEach(file => {
-            let option = document.createElement('option');
-            option.value = `Data/${file}`;
-            option.text = file;
-            selectElement.appendChild(option);
+        // --- 1. BUILD CHECKBOX UI FOR ALL DEMs ---
+        const container = document.getElementById('demListContainer');
+        const countDisplay = document.getElementById('selectCount');
+
+        myTifFiles.forEach((file, index) => {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'dem-item';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = `Data/${file}`;
+            checkbox.id = `dem_${index}`;
+
+            const label = document.createElement('label');
+            label.htmlFor = `dem_${index}`;
+            label.innerText = file;
+
+            itemDiv.appendChild(checkbox);
+            itemDiv.appendChild(label);
+            container.appendChild(itemDiv);
+
+            checkbox.addEventListener('change', updateSelectionCount);
         });
 
-        // 1. SCENE & CAMERA SETUP
+        function updateSelectionCount() {
+            const checked = container.querySelectorAll('input[type="checkbox"]:checked');
+            countDisplay.innerText = `${checked.length} / 20 Selected`;
+
+            // Enforce Maximum 20 Limit
+            if (checked.length >= 20) {
+                container.querySelectorAll('input[type="checkbox"]:not(:checked)').forEach(cb => {
+                    cb.disabled = true;
+                });
+            } else {
+                container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    cb.disabled = false;
+                });
+            }
+        }
+
+        // --- 2. THREE.JS SCENE SETUP ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB); 
-        scene.fog = new THREE.FogExp2(0x87CEEB, 0.00005); // Add slight distance fog
+        scene.fog = new THREE.FogExp2(0x87CEEB, 0.00004);
 
         const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200000);
         camera.position.set(0, 5000, 5000);
@@ -122,23 +227,71 @@
         scene.add(directionalLight);
 
         let currentMeshes = [];
-        const textureLoader = new THREE.TextureLoader();
-        textureLoader.crossOrigin = "Anonymous"; // Required to load images from ESRI servers
+        let basemapMesh = null;
+        let isBasemapVisible = true;
+        let currentBounds = null; // Store bounds of last loaded terrain
 
-        // 2. MAIN PROCESSING LOGIC
-        async function loadSelectedTIF() {
-            const selectedOptions = Array.from(document.getElementById('layerSelect').selectedOptions).map(opt => opt.value);
-            if (selectedOptions.length === 0) return;
-            if (selectedOptions.length > 20) {
-                alert("Please select a maximum of 20 layers to maintain performance.");
-                selectedOptions.length = 20; 
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.crossOrigin = "Anonymous";
+
+        // --- 3. BASEMAP TOGGLE BUTTON CONTROL ---
+        const basemapBtn = document.getElementById('basemapBtn');
+        basemapBtn.addEventListener('click', () => {
+            isBasemapVisible = !isBasemapVisible;
+            if (isBasemapVisible) {
+                basemapBtn.classList.remove('off');
+                if (basemapMesh) basemapMesh.visible = true;
+                else if (currentBounds) fetchAndRenderBasemap(currentBounds);
+            } else {
+                basemapBtn.classList.add('off');
+                if (basemapMesh) basemapMesh.visible = false;
+            }
+        });
+
+        // Function to fetch ESRI Satellite image specifically bounded for Peninsular Malaysia (EPSG:3375)
+        function fetchAndRenderBasemap(bounds) {
+            if (basemapMesh) {
+                scene.remove(basemapMesh);
+                basemapMesh.geometry.dispose();
+                basemapMesh.material.dispose();
+                basemapMesh = null;
             }
 
+            // ESRI MapServer Export URL tuned for Peninsular Malaysia Grid (EPSG:3375)
+            const esriUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${bounds.minX},${bounds.minY},${bounds.maxX},${bounds.maxY}&bboxSR=3375&imageSR=3375&size=2048,2048&format=jpg&f=image`;
+
+            const baseWidth = bounds.maxX - bounds.minX;
+            const baseHeight = bounds.maxY - bounds.minY;
+            const basemapGeom = new THREE.PlaneGeometry(baseWidth, baseHeight);
+
+            textureLoader.load(esriUrl, (texture) => {
+                const basemapMat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+                basemapMesh = new THREE.Mesh(basemapGeom, basemapMat);
+                basemapMesh.rotation.x = -Math.PI / 2;
+                
+                basemapMesh.position.x = baseWidth / 2;
+                basemapMesh.position.z = baseHeight / 2;
+                basemapMesh.position.y = bounds.minZ - 1; // 1m below lowest terrain
+                
+                basemapMesh.visible = isBasemapVisible;
+                scene.add(basemapMesh);
+            });
+        }
+
+        // --- 4. RENDER 3D DEM TERRAIN ---
+        async function loadSelectedDEMs() {
+            const checkedBoxes = Array.from(container.querySelectorAll('input[type="checkbox"]:checked'));
+            if (checkedBoxes.length === 0) {
+                alert("Please check at least one DEM layer from the list.");
+                return;
+            }
+
+            const selectedPaths = checkedBoxes.map(cb => cb.value);
             const loadingText = document.getElementById('loading');
             loadingText.style.display = 'block';
 
             try {
-                // Clear out old models and basemap
+                // Remove old DEM meshes
                 currentMeshes.forEach(mesh => { scene.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose(); });
                 currentMeshes = [];
 
@@ -147,9 +300,9 @@
                 let globalMinX = Infinity, globalMaxX = -Infinity;
                 let globalMinY = Infinity, globalMaxY = -Infinity;
 
-                // --- PASS 1: Read all selected files to calculate exact global boundaries ---
-                for (let k = 0; k < selectedOptions.length; k++) {
-                    const response = await fetch(selectedOptions[k]);
+                // --- PASS 1: Calculate global bounding box & elevation extremes ---
+                for (let k = 0; k < selectedPaths.length; k++) {
+                    const response = await fetch(selectedPaths[k]);
                     const arrayBuffer = await response.arrayBuffer();
                     const tiff = await GeoTIFF.fromArrayBuffer(arrayBuffer);
                     const image = await tiff.getImage();
@@ -169,19 +322,16 @@
                         scaleY = pixelScale[1];
                     }
 
-                    // Calculate real-world bounds of this tile
                     let tMinX = originX;
                     let tMaxX = originX + (width * scaleX);
                     let tMaxY = originY; 
                     let tMinY = originY - (height * scaleY);
 
-                    // Update Global Bounds
                     if (tMinX < globalMinX) globalMinX = tMinX;
                     if (tMaxX > globalMaxX) globalMaxX = tMaxX;
                     if (tMinY < globalMinY) globalMinY = tMinY;
                     if (tMaxY > globalMaxY) globalMaxY = tMaxY;
 
-                    // Update Global Elevations
                     for (let i = 0; i < elevationData.length; i++) {
                         let e = elevationData[i];
                         if (e > -1000) { 
@@ -192,33 +342,15 @@
                     loadedTiles.push({ elevationData, width, height, originX, originY, scaleX, scaleY });
                 }
 
-                // --- FETCH DYNAMIC ESRI SATELLITE BASEMAP ---
-                // We ask ESRI MapServer to export a JPG exactly matching our EPSG:3375 bounding box!
-                const esriUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${globalMinX},${globalMinY},${globalMaxX},${globalMaxY}&bboxSR=3375&imageSR=3375&size=2048,2048&format=jpg&f=image`;
-                
-                const baseWidth = globalMaxX - globalMinX;
-                const baseHeight = globalMaxY - globalMinY;
-                const basemapGeom = new THREE.PlaneGeometry(baseWidth, baseHeight);
-                
-                textureLoader.load(esriUrl, (texture) => {
-                    const basemapMat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
-                    const basemapMesh = new THREE.Mesh(basemapGeom, basemapMat);
-                    basemapMesh.rotation.x = -Math.PI / 2;
-                    
-                    // Position basemap at the calculated center of all loaded tiles
-                    basemapMesh.position.x = baseWidth / 2;
-                    basemapMesh.position.z = baseHeight / 2;
-                    basemapMesh.position.y = globalMinZ - 1; // Tuck it 1 meter below the lowest point
-                    
-                    scene.add(basemapMesh);
-                    currentMeshes.push(basemapMesh);
-                });
+                currentBounds = { minX: globalMinX, maxX: globalMaxX, minY: globalMinY, maxY: globalMaxY, minZ: globalMinZ };
 
-                // --- PASS 2: Build the 3D DEM Geometries ---
+                // Load Satellite Basemap matching current DEM extent
+                fetchAndRenderBasemap(currentBounds);
+
+                // --- PASS 2: Construct 3D Tile Geometry ---
                 for (let k = 0; k < loadedTiles.length; k++) {
                     const tile = loadedTiles[k];
                     
-                    // Multiply width/height by their real-world scale (~4.6 meters)
                     const geometry = new THREE.PlaneGeometry(tile.width * tile.scaleX, tile.height * tile.scaleY, tile.width - 1, tile.height - 1);
                     const vertices = geometry.attributes.position.array;
                     
@@ -229,12 +361,12 @@
                         let elevation = tile.elevationData[j];
                         if (elevation < -1000) elevation = globalMinZ; 
                         
-                        vertices[i + 2] = elevation; // True elevation in meters
+                        vertices[i + 2] = elevation; // Height in meters
 
                         let normalizedHeight = (elevation - globalMinZ) / (globalMaxZ - globalMinZ);
                         if (isNaN(normalizedHeight)) normalizedHeight = 0;
                         
-                        // Green (low) to Red (high)
+                        // Green to Red Color Ramp
                         color.setHSL((1.0 - normalizedHeight) * 0.33, 1.0, 0.5); 
                         colors.push(color.r, color.g, color.b);
                     }
@@ -246,9 +378,8 @@
                     const mesh = new THREE.Mesh(geometry, material);
                     mesh.rotation.x = -Math.PI / 2;
 
-                    // Position this specific tile perfectly relative to the global origin
                     const xOffset = tile.originX - globalMinX;
-                    const zOffset = globalMaxY - tile.originY; // Invert Y for Three.js Z axis
+                    const zOffset = globalMaxY - tile.originY; 
                     
                     mesh.position.x = xOffset + ((tile.width * tile.scaleX) / 2);
                     mesh.position.z = zOffset + ((tile.height * tile.scaleY) / 2); 
@@ -257,31 +388,37 @@
                     currentMeshes.push(mesh);
                 }
                 
-                // --- UPDATE UI & CAMERA ---
-                // Update the legend numbers
+                // Update Legend & Center Camera
                 document.getElementById('legend').style.display = 'block';
                 document.getElementById('maxElev').innerText = globalMaxZ.toFixed(1) + ' m';
                 document.getElementById('minElev').innerText = globalMinZ.toFixed(1) + ' m';
 
-                // Automatically fly the camera to center the newly loaded tiles!
+                const baseWidth = globalMaxX - globalMinX;
+                const baseHeight = globalMaxY - globalMinY;
                 const targetX = baseWidth / 2;
                 const targetZ = baseHeight / 2;
+                
                 controls.target.set(targetX, globalMinZ, targetZ);
                 camera.position.set(targetX, Math.max(baseWidth, 4000) * 0.8, targetZ + Math.max(baseHeight, 4000) * 0.8);
                 
                 loadingText.style.display = 'none';
             } catch (error) {
                 console.error("Error loading TIF:", error);
-                loadingText.innerText = "Error loading file. Check console.";
+                loadingText.innerText = "Error loading DEM files.";
             }
         }
 
-        document.getElementById('loadBtn').addEventListener('click', loadSelectedTIF);
+        document.getElementById('loadBtn').addEventListener('click', loadSelectedDEMs);
 
+        // --- ANIMATION LOOP ---
         function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
         animate();
 
-        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+        window.addEventListener('resize', () => { 
+            camera.aspect = window.innerWidth / window.innerHeight; 
+            camera.updateProjectionMatrix(); 
+            renderer.setSize(window.innerWidth, window.innerHeight); 
+        });
     </script>
 </body>
 </html>
