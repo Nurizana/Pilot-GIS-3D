@@ -113,7 +113,7 @@
             </div>
         </div>
 
-        <button id="loadBtn">Render 3D Terrain</button>
+        <button id="loadBtn">Load DEM Layers</button>
         <div id="loading">Processing DEM files & Satellite...</div>
     </div>
 
@@ -193,15 +193,10 @@
             const checked = container.querySelectorAll('input[type="checkbox"]:checked');
             countDisplay.innerText = `${checked.length} / 20 Selected`;
 
-            // Enforce Maximum 20 Limit
             if (checked.length >= 20) {
-                container.querySelectorAll('input[type="checkbox"]:not(:checked)').forEach(cb => {
-                    cb.disabled = true;
-                });
+                container.querySelectorAll('input[type="checkbox"]:not(:checked)').forEach(cb => { cb.disabled = true; });
             } else {
-                container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                    cb.disabled = false;
-                });
+                container.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.disabled = false; });
             }
         }
 
@@ -210,10 +205,12 @@
         scene.background = new THREE.Color(0x87CEEB); 
         scene.fog = new THREE.FogExp2(0x87CEEB, 0.00004);
 
-        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200000);
+        // Z-FIGHTING FIX 1: Adjust camera near clipping plane to 10
+        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 10, 200000);
         camera.position.set(0, 5000, 5000);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        // Z-FIGHTING FIX 2: Enable logarithmicDepthBuffer
+        const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
@@ -229,7 +226,7 @@
         let currentMeshes = [];
         let basemapMesh = null;
         let isBasemapVisible = true;
-        let currentBounds = null; // Store bounds of last loaded terrain
+        let currentBounds = null; 
 
         const textureLoader = new THREE.TextureLoader();
         textureLoader.crossOrigin = "Anonymous";
@@ -248,7 +245,6 @@
             }
         });
 
-        // Function to fetch ESRI Satellite image specifically bounded for Peninsular Malaysia (EPSG:3375)
         function fetchAndRenderBasemap(bounds) {
             if (basemapMesh) {
                 scene.remove(basemapMesh);
@@ -257,7 +253,6 @@
                 basemapMesh = null;
             }
 
-            // ESRI MapServer Export URL tuned for Peninsular Malaysia Grid (EPSG:3375)
             const esriUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${bounds.minX},${bounds.minY},${bounds.maxX},${bounds.maxY}&bboxSR=3375&imageSR=3375&size=2048,2048&format=jpg&f=image`;
 
             const baseWidth = bounds.maxX - bounds.minX;
@@ -271,7 +266,9 @@
                 
                 basemapMesh.position.x = baseWidth / 2;
                 basemapMesh.position.z = baseHeight / 2;
-                basemapMesh.position.y = bounds.minZ - 1; // 1m below lowest terrain
+                
+                // Z-FIGHTING FIX 3: Push the basemap slightly deeper (-5m instead of -1m)
+                basemapMesh.position.y = bounds.minZ - 5; 
                 
                 basemapMesh.visible = isBasemapVisible;
                 scene.add(basemapMesh);
@@ -291,7 +288,6 @@
             loadingText.style.display = 'block';
 
             try {
-                // Remove old DEM meshes
                 currentMeshes.forEach(mesh => { scene.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose(); });
                 currentMeshes = [];
 
@@ -300,7 +296,6 @@
                 let globalMinX = Infinity, globalMaxX = -Infinity;
                 let globalMinY = Infinity, globalMaxY = -Infinity;
 
-                // --- PASS 1: Calculate global bounding box & elevation extremes ---
                 for (let k = 0; k < selectedPaths.length; k++) {
                     const response = await fetch(selectedPaths[k]);
                     const arrayBuffer = await response.arrayBuffer();
@@ -343,11 +338,8 @@
                 }
 
                 currentBounds = { minX: globalMinX, maxX: globalMaxX, minY: globalMinY, maxY: globalMaxY, minZ: globalMinZ };
-
-                // Load Satellite Basemap matching current DEM extent
                 fetchAndRenderBasemap(currentBounds);
 
-                // --- PASS 2: Construct 3D Tile Geometry ---
                 for (let k = 0; k < loadedTiles.length; k++) {
                     const tile = loadedTiles[k];
                     
@@ -361,12 +353,11 @@
                         let elevation = tile.elevationData[j];
                         if (elevation < -1000) elevation = globalMinZ; 
                         
-                        vertices[i + 2] = elevation; // Height in meters
+                        vertices[i + 2] = elevation; 
 
                         let normalizedHeight = (elevation - globalMinZ) / (globalMaxZ - globalMinZ);
                         if (isNaN(normalizedHeight)) normalizedHeight = 0;
                         
-                        // Green to Red Color Ramp
                         color.setHSL((1.0 - normalizedHeight) * 0.33, 1.0, 0.5); 
                         colors.push(color.r, color.g, color.b);
                     }
@@ -388,7 +379,6 @@
                     currentMeshes.push(mesh);
                 }
                 
-                // Update Legend & Center Camera
                 document.getElementById('legend').style.display = 'block';
                 document.getElementById('maxElev').innerText = globalMaxZ.toFixed(1) + ' m';
                 document.getElementById('minElev').innerText = globalMinZ.toFixed(1) + ' m';
@@ -410,7 +400,6 @@
 
         document.getElementById('loadBtn').addEventListener('click', loadSelectedDEMs);
 
-        // --- ANIMATION LOOP ---
         function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
         animate();
 
