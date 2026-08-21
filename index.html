@@ -6,13 +6,23 @@
     <style>
         body { margin: 0; overflow: hidden; background-color: #87CEEB; color: white; font-family: sans-serif; }
         canvas { display: block; }
+        
+        /* UI Panel */
         #ui { position: absolute; top: 15px; left: 15px; background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 8px; z-index: 100; min-width: 250px; max-height: 90vh; display: flex; flex-direction: column; }
         select { padding: 8px; margin-top: 10px; width: 100%; height: 250px; cursor: pointer; background: #333; color: white; border: 1px solid #555; }
         button { padding: 12px; margin-top: 15px; width: 100%; cursor: pointer; background: #4caf50; color: white; border: none; font-weight: bold; font-size: 14px; }
         button:hover { background: #45a049; }
         #loading { display: none; color: #ffeb3b; margin-top: 15px; font-weight: bold; text-align: center; }
         small { color: #bbb; display: block; margin-top: 5px; font-size: 11px; }
+
+        /* Dynamic Legend Overlay */
+        #legend { position: absolute; bottom: 20px; right: 20px; background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 8px; display: none; text-align: center; font-family: sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
+        #legend h4 { margin: 0 0 10px 0; font-size: 14px; letter-spacing: 1px; }
+        .legend-container { display: flex; align-items: center; justify-content: center; height: 150px; }
+        .color-bar { height: 100%; width: 25px; background: linear-gradient(to top, #4caf50, #ffff00, #ff5252); border-radius: 4px; border: 1px solid #fff; margin-right: 15px; }
+        .labels { display: flex; flex-direction: column; justify-content: space-between; height: 100%; font-size: 13px; font-weight: bold; text-align: left; }
     </style>
+    
     <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.min.js"></script>
     <script type="importmap">
         {
@@ -27,23 +37,59 @@
     <div id="ui">
         <h2>3D DEM Viewer</h2>
         <label for="layerSelect">Select TIF Layers:</label>
-        <small>Hold <b>Ctrl</b> (Windows) or <b>Cmd</b> (Mac) to select multiple.</small>
+        <small>Hold <b>Ctrl</b> (Windows) or <b>Cmd</b> (Mac) to select up to 20.</small>
         <select id="layerSelect" multiple>
             <!-- Javascript will auto-fill this -->
         </select>
         <button id="loadBtn">Load 3D Surface</button>
-        <div id="loading">Processing TIF data...</div>
+        <div id="loading">Processing TIF & Fetching ESRI Basemap...</div>
+    </div>
+
+    <!-- The Legend -->
+    <div id="legend">
+        <h4>ELEVATION</h4>
+        <div class="legend-container">
+            <div class="color-bar"></div>
+            <div class="labels">
+                <span id="maxElev">0 m</span>
+                <span id="minElev">0 m</span>
+            </div>
+        </div>
     </div>
     
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // Add all your 200 filenames here (shortened for brevity)
         const myTifFiles = [
-            "AU13002.tif", "AU13003.tif", "AU13004.tif", "AU13011.tif", "AU13012.tif", 
-            "AU13013.tif", "AU13014.tif", "AU13021.tif", "AU13022.tif", "AU13023.tif",
-            "AU13024.tif", "AU13031.tif", "AU13032.tif", "AU13033.tif", "AU13034.tif"
+            "AU13002.tif", "AU13003.tif", "AU13004.tif", "AU13011.tif", "AU13012.tif", "AU13013.tif", "AU13014.tif",
+            "AU13021.tif", "AU13022.tif", "AU13023.tif", "AU13024.tif", "AU13031.tif", "AU13032.tif", "AU13033.tif",
+            "AU13034.tif", "AU13041.tif", "AU13042.tif", "AU13043.tif", "AU13044.tif", "AU13051.tif", "AU13052.tif",
+            "AU13053.tif", "AU13054.tif", "AU13061.tif", "AU13062.tif", "AU13063.tif", "AU13064.tif", "AU13071.tif",
+            "AU13072.tif", "AU13073.tif", "AU13074.tif", "AU13081.tif", "AU13082.tif", "AU13083.tif", "AU13084.tif",
+            "AU13091.tif", "AU13092.tif", "AU13093.tif", "AU13094.tif", "AU13101.tif", "AU13102.tif", "AU13103.tif",
+            "AU13104.tif", "AU13111.tif", "AU13112.tif", "AU13113.tif", "AU13114.tif", "AU13121.tif", "AU13122.tif",
+            "AU13123.tif", "AU13124.tif", "AU13131.tif", "AU13132.tif", "AU13133.tif", "AU13134.tif", "AU13141.tif",
+            "AU13142.tif", "AU13143.tif", "AU13144.tif", "AU13151.tif", "AU13152.tif", "AU13153.tif", "AU13154.tif",
+            "AU13161.tif", "AU13162.tif", "AU13163.tif", "AU13164.tif", "AU13171.tif", "AU13172.tif", "AU13173.tif",
+            "AU13174.tif", "AU13181.tif", "AU13182.tif", "AU13183.tif", "AU13184.tif", "AU13191.tif", "AU13192.tif",
+            "AU13193.tif", "AU13194.tif", "AU13201.tif", "AU13202.tif", "AU13203.tif", "AU13204.tif", "AU13211.tif",
+            "AU13212.tif", "AU13213.tif", "AU13214.tif", "AU13221.tif", "AU13222.tif", "AU13223.tif", "AU13224.tif",
+            "AU13231.tif", "AU13232.tif", "AU13233.tif", "AU13234.tif", "AU13241.tif", "AU13242.tif", "AU13243.tif",
+            "AU13244.tif", "AU31001.tif", "AU31002.tif", "AU31003.tif", "AU31004.tif", "AU31011.tif", "AU31012.tif",
+            "AU31013.tif", "AU31014.tif", "AU31021.tif", "AU31022.tif", "AU31023.tif", "AU31024.tif", "AU31031.tif",
+            "AU31032.tif", "AU31033.tif", "AU31034.tif", "AU31041.tif", "AU31042.tif", "AU31043.tif", "AU31044.tif",
+            "AU31051.tif", "AU31052.tif", "AU31053.tif", "AU31054.tif", "AU31061.tif", "AU31062.tif", "AU31063.tif",
+            "AU31064.tif", "AU31071.tif", "AU31072.tif", "AU31073.tif", "AU31074.tif", "AU31081.tif", "AU31082.tif",
+            "AU31083.tif", "AU31084.tif", "AU31091.tif", "AU31092.tif", "AU31093.tif", "AU31094.tif", "AU31101.tif",
+            "AU31102.tif", "AU31103.tif", "AU31104.tif", "AU31111.tif", "AU31112.tif", "AU31123.tif", "AU31124.tif",
+            "AU31131.tif", "AU31132.tif", "AU31133.tif", "AU31134.tif", "AU31141.tif", "AU31142.tif", "AU31143.tif",
+            "AU31144.tif", "AU31151.tif", "AU31152.tif", "AU31153.tif", "AU31154.tif", "AU31161.tif", "AU31162.tif",
+            "AU31163.tif", "AU31164.tif", "AU31171.tif", "AU31172.tif", "AU31173.tif", "AU31174.tif", "AU31181.tif",
+            "AU31182.tif", "AU31183.tif", "AU31184.tif", "AU31191.tif", "AU31192.tif", "AU31193.tif", "AU31194.tif",
+            "AU31201.tif", "AU31202.tif", "AU31203.tif", "AU31204.tif", "AU31211.tif", "AU31212.tif", "AU31213.tif",
+            "AU31214.tif", "AU31221.tif", "AU31222.tif", "AU31223.tif", "AU31224.tif", "AU31231.tif", "AU31232.tif",
+            "AU31233.tif", "AU31234.tif", "AU31241.tif", "AU31242.tif", "AU31243.tif", "AU31244.tif"
         ];
 
         const selectElement = document.getElementById('layerSelect');
@@ -54,12 +100,13 @@
             selectElement.appendChild(option);
         });
 
-        // 1. SCENE SETUP
+        // 1. SCENE & CAMERA SETUP
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB); 
+        scene.fog = new THREE.FogExp2(0x87CEEB, 0.00005); // Add slight distance fog
 
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100000);
-        camera.position.set(0, 3000, 4000);
+        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200000);
+        camera.position.set(0, 5000, 5000);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -70,63 +117,37 @@
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(2000, 5000, 2000);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        directionalLight.position.set(5000, 10000, 5000);
         scene.add(directionalLight);
 
-        // 2. REFERENCE GRID & SATELLITE BASEMAP
-        // Add a visible grid to give scale (Size: 20000 meters, 100 divisions)
-        const gridHelper = new THREE.GridHelper(20000, 100, 0xffffff, 0x555555);
-        gridHelper.position.y = -5; // Sit just below the models
-        scene.add(gridHelper);
-
-        // Prepare the Satellite Basemap Plane
-        const textureLoader = new THREE.TextureLoader();
-        // It will look for your exported image in the Data folder
-        const basemapTexture = textureLoader.load('Data/satellite_base.jpg', 
-            function (texture) { console.log("Basemap loaded successfully"); },
-            undefined,
-            function (err) { console.warn("No satellite_base.jpg found yet. Showing default color."); }
-        );
-
-        // Make the plane large enough to cover the grid (20km x 20km)
-        const basePlaneGeom = new THREE.PlaneGeometry(20000, 20000);
-        const basePlaneMat = new THREE.MeshBasicMaterial({ 
-            map: basemapTexture, 
-            color: 0x222222, // Dark grey fallback if image isn't found
-            side: THREE.DoubleSide 
-        }); 
-        
-        const basePlane = new THREE.Mesh(basePlaneGeom, basePlaneMat);
-        basePlane.rotation.x = -Math.PI / 2;
-        basePlane.position.y = -10; 
-        scene.add(basePlane);
-
         let currentMeshes = [];
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.crossOrigin = "Anonymous"; // Required to load images from ESRI servers
 
-        // 3. LAYER LOADING LOGIC
+        // 2. MAIN PROCESSING LOGIC
         async function loadSelectedTIF() {
             const selectedOptions = Array.from(document.getElementById('layerSelect').selectedOptions).map(opt => opt.value);
             if (selectedOptions.length === 0) return;
             if (selectedOptions.length > 20) {
-                alert("Please select a maximum of 20 layers.");
+                alert("Please select a maximum of 20 layers to maintain performance.");
                 selectedOptions.length = 20; 
             }
 
             const loadingText = document.getElementById('loading');
             loadingText.style.display = 'block';
-            loadingText.innerText = `Processing ${selectedOptions.length} layer(s)...`;
 
             try {
+                // Clear out old models and basemap
                 currentMeshes.forEach(mesh => { scene.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose(); });
                 currentMeshes = [];
 
                 let loadedTiles = [];
-                let globalMinZ = Infinity;
-                let globalMaxZ = -Infinity;
-                let globalOffsetX = null;
-                let globalOffsetY = null;
+                let globalMinZ = Infinity, globalMaxZ = -Infinity;
+                let globalMinX = Infinity, globalMaxX = -Infinity;
+                let globalMinY = Infinity, globalMaxY = -Infinity;
 
+                // --- PASS 1: Read all selected files to calculate exact global boundaries ---
                 for (let k = 0; k < selectedOptions.length; k++) {
                     const response = await fetch(selectedOptions[k]);
                     const arrayBuffer = await response.arrayBuffer();
@@ -148,11 +169,19 @@
                         scaleY = pixelScale[1];
                     }
 
-                    if (globalOffsetX === null) {
-                        globalOffsetX = originX;
-                        globalOffsetY = originY;
-                    }
+                    // Calculate real-world bounds of this tile
+                    let tMinX = originX;
+                    let tMaxX = originX + (width * scaleX);
+                    let tMaxY = originY; 
+                    let tMinY = originY - (height * scaleY);
 
+                    // Update Global Bounds
+                    if (tMinX < globalMinX) globalMinX = tMinX;
+                    if (tMaxX > globalMaxX) globalMaxX = tMaxX;
+                    if (tMinY < globalMinY) globalMinY = tMinY;
+                    if (tMaxY > globalMaxY) globalMaxY = tMaxY;
+
+                    // Update Global Elevations
                     for (let i = 0; i < elevationData.length; i++) {
                         let e = elevationData[i];
                         if (e > -1000) { 
@@ -160,13 +189,37 @@
                             if (e > globalMaxZ) globalMaxZ = e;
                         }
                     }
-
                     loadedTiles.push({ elevationData, width, height, originX, originY, scaleX, scaleY });
                 }
 
+                // --- FETCH DYNAMIC ESRI SATELLITE BASEMAP ---
+                // We ask ESRI MapServer to export a JPG exactly matching our EPSG:3375 bounding box!
+                const esriUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${globalMinX},${globalMinY},${globalMaxX},${globalMaxY}&bboxSR=3375&imageSR=3375&size=2048,2048&format=jpg&f=image`;
+                
+                const baseWidth = globalMaxX - globalMinX;
+                const baseHeight = globalMaxY - globalMinY;
+                const basemapGeom = new THREE.PlaneGeometry(baseWidth, baseHeight);
+                
+                textureLoader.load(esriUrl, (texture) => {
+                    const basemapMat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+                    const basemapMesh = new THREE.Mesh(basemapGeom, basemapMat);
+                    basemapMesh.rotation.x = -Math.PI / 2;
+                    
+                    // Position basemap at the calculated center of all loaded tiles
+                    basemapMesh.position.x = baseWidth / 2;
+                    basemapMesh.position.z = baseHeight / 2;
+                    basemapMesh.position.y = globalMinZ - 1; // Tuck it 1 meter below the lowest point
+                    
+                    scene.add(basemapMesh);
+                    currentMeshes.push(basemapMesh);
+                });
+
+                // --- PASS 2: Build the 3D DEM Geometries ---
                 for (let k = 0; k < loadedTiles.length; k++) {
                     const tile = loadedTiles[k];
-                    const geometry = new THREE.PlaneGeometry(tile.width, tile.height, tile.width - 1, tile.height - 1);
+                    
+                    // Multiply width/height by their real-world scale (~4.6 meters)
+                    const geometry = new THREE.PlaneGeometry(tile.width * tile.scaleX, tile.height * tile.scaleY, tile.width - 1, tile.height - 1);
                     const vertices = geometry.attributes.position.array;
                     
                     const colors = [];
@@ -175,11 +228,14 @@
                     for (let i = 0, j = 0; i < vertices.length; i += 3, j++) {
                         let elevation = tile.elevationData[j];
                         if (elevation < -1000) elevation = globalMinZ; 
-                        vertices[i + 2] = elevation; 
+                        
+                        vertices[i + 2] = elevation; // True elevation in meters
 
                         let normalizedHeight = (elevation - globalMinZ) / (globalMaxZ - globalMinZ);
                         if (isNaN(normalizedHeight)) normalizedHeight = 0;
-                        color.setHSL((1.0 - normalizedHeight) * 0.3, 1.0, 0.5); 
+                        
+                        // Green (low) to Red (high)
+                        color.setHSL((1.0 - normalizedHeight) * 0.33, 1.0, 0.5); 
                         colors.push(color.r, color.g, color.b);
                     }
 
@@ -190,15 +246,28 @@
                     const mesh = new THREE.Mesh(geometry, material);
                     mesh.rotation.x = -Math.PI / 2;
 
-                    const offsetX = (tile.originX - globalOffsetX) / tile.scaleX;
-                    const offsetY = (tile.originY - globalOffsetY) / tile.scaleY;
+                    // Position this specific tile perfectly relative to the global origin
+                    const xOffset = tile.originX - globalMinX;
+                    const zOffset = globalMaxY - tile.originY; // Invert Y for Three.js Z axis
                     
-                    mesh.position.x = offsetX + (tile.width / 2);
-                    mesh.position.z = -offsetY + (tile.height / 2); 
+                    mesh.position.x = xOffset + ((tile.width * tile.scaleX) / 2);
+                    mesh.position.z = zOffset + ((tile.height * tile.scaleY) / 2); 
 
                     scene.add(mesh);
                     currentMeshes.push(mesh);
                 }
+                
+                // --- UPDATE UI & CAMERA ---
+                // Update the legend numbers
+                document.getElementById('legend').style.display = 'block';
+                document.getElementById('maxElev').innerText = globalMaxZ.toFixed(1) + ' m';
+                document.getElementById('minElev').innerText = globalMinZ.toFixed(1) + ' m';
+
+                // Automatically fly the camera to center the newly loaded tiles!
+                const targetX = baseWidth / 2;
+                const targetZ = baseHeight / 2;
+                controls.target.set(targetX, globalMinZ, targetZ);
+                camera.position.set(targetX, Math.max(baseWidth, 4000) * 0.8, targetZ + Math.max(baseHeight, 4000) * 0.8);
                 
                 loadingText.style.display = 'none';
             } catch (error) {
