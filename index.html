@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>3D TIF Viewer - Pilot GIS</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #222; color: white; font-family: sans-serif; }
+        canvas { display: block; }
+        #ui { position: absolute; top: 15px; left: 15px; background: rgba(0, 0, 0, 0.7); padding: 15px; border-radius: 8px; z-index: 100; }
+        select, button { padding: 8px; margin-top: 10px; width: 100%; cursor: pointer; }
+        #loading { display: none; color: #ffeb3b; margin-top: 10px; font-weight: bold; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.min.js"></script>
+</head>
+<body>
+    <div id="ui">
+        <h2>3D Terrain Viewer</h2>
+        <label for="layerSelect">Select TIF Layer:</label>
+        <select id="layerSelect">
+            <!-- Ensure these match your exact file names in the Data folder -->
+            <option value="Data/AU13001.tif">AU13001</option>
+            <option value="Data/AU13002.tif">AU13002</option>
+            <option value="Data/AU13003.tif">AU13003</option>
+        </select>
+        <button onclick="loadSelectedTIF()">Load 3D Surface</button>
+        <div id="loading">Processing TIF data...</div>
+    </div>
+    
+    <script type="module">
+        import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
+        import { OrbitControls } from 'https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js';
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+        camera.position.set(0, 500, 500);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(100, 500, 100);
+        scene.add(directionalLight);
+
+        let currentMesh = null;
+
+        window.loadSelectedTIF = async function() {
+            const filepath = document.getElementById('layerSelect').value;
+            const loadingText = document.getElementById('loading');
+            loadingText.style.display = 'block';
+
+            try {
+                if (currentMesh) {
+                    scene.remove(currentMesh);
+                    currentMesh.geometry.dispose();
+                    currentMesh.material.dispose();
+                }
+
+                const response = await fetch(filepath);
+                const arrayBuffer = await response.arrayBuffer();
+                const tiff = await GeoTIFF.fromArrayBuffer(arrayBuffer);
+                const image = await tiff.getImage();
+                const rasters = await image.readRasters();
+                const elevationData = rasters[0]; 
+
+                const width = image.getWidth();
+                const height = image.getHeight();
+
+                const geometry = new THREE.PlaneGeometry(width, height, width - 1, height - 1);
+                const vertices = geometry.attributes.position.array;
+
+                for (let i = 0, j = 0; i < vertices.length; i += 3, j++) {
+                    let elevation = elevationData[j];
+                    if (elevation < -1000) elevation = 0; 
+                    vertices[i + 2] = elevation; 
+                }
+
+                geometry.computeVertexNormals(); 
+
+                const material = new THREE.MeshStandardMaterial({ 
+                    color: 0x4caf50, 
+                    wireframe: false,
+                    side: THREE.DoubleSide
+                });
+
+                currentMesh = new THREE.Mesh(geometry, material);
+                currentMesh.rotation.x = -Math.PI / 2;
+                scene.add(currentMesh);
+                
+                loadingText.style.display = 'none';
+            } catch (error) {
+                console.error("Error loading TIF:", error);
+                loadingText.innerText = "Error loading file. Check console.";
+            }
+        };
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
